@@ -1,0 +1,88 @@
+steps:
+  - label: ":hammer: Building Project"
+    command: "./gradlew clean assembleDevelopmentDebug"
+    artifact_paths: "app/build/outputs/apk/development/debug/*.apk"
+
+
+  - label: "Checking Lint"
+    command: './gradlew lintDevelopmentDebug'
+    artifact_paths:
+      - "app/build/reports/lint-results.html"
+      - "app/build/reports/lint-results.xml"
+
+
+  - label: "Running unit tests"
+    command:
+      - './gradlew testDevelopmentDebugUnitTest'
+      - 'zip -r app/build/reports/test-results.zip app/build/reports/tests'
+    artifact_paths:
+      - "app/build/reports/test-results.zip"
+      - "app/build/test-results/testDevelopmentDebugUnitTest/*.xml"
+
+
+  - label: "Running Android tests on emulator (API 21 & 28)"
+    command:
+      - 'source ~/.bashrc'
+      - 'chmod +x scripts/*.sh'
+      - 'scripts/create_android_emulators.sh'
+      - 'scripts/run_android_tests.sh 21'
+      - 'scripts/run_android_tests.sh 28'
+      - 'zip -r app/build/reports/test-results.zip app/build/reports/androidTests'
+    artifact_paths:
+      - "app/build/reports/test-results.zip"
+      - "app/build/outputs/androidTest-results/connected/**/*.xml"
+
+  - wait: ~
+    continue_on_failure: true
+  - plugins:
+    - junit-annotate#v1.5.0:
+        artifacts: app/build/**/*.xml
+
+
+  - block: "Push UAT Build to Fabric Beta"
+    fields:
+      - text: "Emails"
+        key: "emails"
+        hint: "Enter emails to send build to, separated by comma (leave blank for default value in beta_distribution_emails.txt)"
+        required: false
+
+      - text: "Release Notes"
+        key: "release-notes"
+        hint: "Release Notes (leave blank for default value in release_notes.txt)"
+        required: false
+
+  - label: "Push UAT Build to Fabric Beta"
+    command:
+      - 'scripts/upload_to_fabric_beta.sh'
+    artifact_paths: "app/build/outputs/apk/uat/debug/*.apk"
+    env:
+      FLAVOR: 'Uat'
+      BUILDTYPE: 'Debug'
+
+
+  - block: "Push Production Build to Fabric Beta"
+    fields:
+      - text: "Emails"
+        key: "emails"
+        hint: "Enter emails to send build to, separated by comma (leave blank for default value in beta_distribution_emails.txt)"
+        required: false
+
+      - text: "Release Notes"
+        key: "release-notes"
+        hint: "Release Notes (leave blank for default value in release_notes.txt)"
+        required: false
+
+  - label: "Push Production Build to Fabric Beta"
+    command:
+      - 'scripts/upload_to_fabric_beta.sh'
+    artifact_paths: "app/build/outputs/apk/production/release/*.apk"
+    env:
+      FLAVOR: 'Production'
+      BUILDTYPE: 'Release'
+
+
+  - block: "Upload draft to Play Store"
+
+  - label: "Upload draft to Play Store"
+    command: "./gradlew clean assembleProductionRelease publishProductionReleaseApk"
+    artifact_paths: "app/build/outputs/apk/production/release/*.apk"
